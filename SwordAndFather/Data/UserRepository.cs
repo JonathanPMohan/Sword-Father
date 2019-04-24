@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Data.SqlClient;
 using SwordAndFather.Models;
 
@@ -6,18 +7,46 @@ namespace SwordAndFather.Data
 {
     public class UserRepository
     {
-        static List<User> _users = new List<User>();
+        const string ConnectionString = "Server = localhost; Database = SwordAndFather; Trusted_Connection = True;";
 
         public User AddUser(string username, string password)
         {
-            var newUser = new User(username, password);
+            
+            // Setting Connection to a Variable //
+            using (var connection = new SqlConnection("Server = localhost; Database = SwordAndFather; Trusted_Connection = True;"))
+            {
 
-            newUser.Id = _users.Count + 1;
+                // Opening Connection //
+                connection.Open();
 
-            _users.Add(newUser);
+                //Creating Connection Command //
+                var insertUserCommand = connection.CreateCommand();
 
-            return newUser;
+                // Inserting User Command Text //
+                insertUserCommand.CommandText = $@"Insert into users (username,password)
+                                               Output inserted.*
+                                               Values('{@username}', '{@password}')";
+                // Excecuting our Reader Query //
+                var reader = insertUserCommand.ExecuteReader();
+
+                if (reader.Read())
+                {
+
+                    var insertedPassword = reader["password"].ToString();
+                    var insertedUserName = reader["username"].ToString();
+                    var insertedId = (int)reader["Id"];
+
+                    var newUser = new User(insertedUserName, insertedPassword) { Id = insertedId };
+
+
+                    return newUser;
+                }
+
+
+                throw new Exception("No user found");
+            }
         }
+        
 
         // How to create a SQL connection //
         public List<User> GetAll()
