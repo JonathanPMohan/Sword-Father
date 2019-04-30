@@ -2,90 +2,96 @@
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using SwordAndFather.Models;
+using Dapper;
 
 namespace SwordAndFather.Data
 {
     public class UserRepository
     {
         const string ConnectionString = "Server = localhost; Database = SwordAndFather; Trusted_Connection = True;";
-
+        // Add user //
         public User AddUser(string username, string password)
         {
-            
+
             // Setting Connection to a Variable //
-            using (var connection = new SqlConnection("Server = localhost; Database = SwordAndFather; Trusted_Connection = True;"))
+            using (var db = new SqlConnection(ConnectionString))
             {
+                // Query First Record or Whatever is the default which will be Null with no rows returned //
+                var newUser = db.QueryFirstOrDefault<User>(@"
+                    Insert into users (username, password)
+                    Output inserted.*  
+                    Values(username, @password)",
+                   // Anoymous type is used with curly braces //
+                   // Setting up parameters //
+                   new { username, password });
 
-                // Opening Connection //
-                connection.Open();
-
-                //Creating Connection Command //
-                var insertUserCommand = connection.CreateCommand();
-
-                // Inserting User Command Text //
-                insertUserCommand.CommandText = $@"Insert into users (username,password)
-                                               Output inserted.*
-                                               Values('{@username}', '{@password}')";
-                // Excecuting our Reader Query //
-                var reader = insertUserCommand.ExecuteReader();
-
-                if (reader.Read())
+                if (newUser != null)
                 {
-
-                    var insertedPassword = reader["password"].ToString();
-                    var insertedUserName = reader["username"].ToString();
-                    var insertedId = (int)reader["Id"];
-
-                    var newUser = new User(insertedUserName, insertedPassword) { Id = insertedId };
-
-
                     return newUser;
                 }
 
+            }
 
-                throw new Exception("No user found");
+
+            throw new Exception("No user found");
+        }
+
+        // Delete User //
+        public void DeleteUser(int userId)
+        {
+            using (var db = new SqlConnection(ConnectionString))
+            {
+                // Martin's recommendation //
+                var parameter = new { Id = userId };
+
+                var deleteQuery = "Delete From Users Where Id = @id";
+                // Excecutes don't return anything //
+                var rowsAffected = db.Execute(deleteQuery, parameter);
+                // If you don't define a parameter it will not have a value and will give you an error //
+                if (rowsAffected != 1)
+                {
+                    throw new Exception("Didn't do right");
+                }
             }
         }
-        
 
-        // How to create a SQL connection //
-        public List<User> GetAll()
+        // Update User //
+
+        public User UpdateUser(User userToUpdate)
         {
-            // Setting users to a new list //
-            var users = new List<User>();
-            // Setting the conenction to a variable //
-            var connection = new SqlConnection("Server = localhost; Database = SwordAndFather; Trusted_Connection = True;");
-            // Open Connection //
-            connection.Open();
-            // creating the get all users command //
-            var getAllUsersCommand = connection.CreateCommand();
-            // Writing the Command Select All Users //
-            getAllUsersCommand.CommandText = @"select username, password, id 
-                                                from users";
-            // Sending the Command to the Data from the API cloud by setting it up as a variable --
 
-            var reader = getAllUsersCommand.ExecuteReader();
-            // While loop Method returns a true or false //
-            // Add constructor to return users //
-            while (reader.Read())
+            using (var db = new SqlConnection(ConnectionString))
+
             {
-                // This returns the id as an Int //
-                var id = (int)reader["Id"];
-                var username = reader["username"].ToString();
-                var password = reader["password"].ToString();
-                var user = new User(username, password) { Id = id };
+               var rowsAffected =  db.Execute(@"update Users
+                            Set username = @username,
+                                password = @password
+                                Where id = @id", userToUpdate);
+                if (rowsAffected == 1)
+                return userToUpdate;
+           }
 
-                // Adding Users to Users //
-                users.Add(user);
+            throw new Exception("Could not update user");
+        }
+
+        // Setting IENumerable for User to Get all users //
+        // Exposes an enumerator, which supports a simple iteration over a non-generic collection. //
+        // Get all users //
+        public IEnumerable<User> GetAll()
+        {
+            // Wrapping in a using statement so we don't have to open or close connection //
+            using (var db = new SqlConnection(ConnectionString))
+
+            {
+                // Returning Database Query to select Username, Password and ID from Users.. obviously //
+                return db.Query<User>("select username, password, id from users");
             }
-            
-            // Closing the COnnection //
-            connection.Close();
 
-            // Returning all users //
-            return users;
         }
 
     }
 }
+
+    
+
 
